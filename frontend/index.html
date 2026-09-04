@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>LinkChain — the corkboard for the on-chain web</title>
+<meta name="description" content="Pin your links to the chain. Boost the ones you love with BOT. Live for life." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;700&family=Kalam:wght@300;400;700&family=Patrick+Hand&family=Special+Elite&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.9.0/ethers.umd.min.js"></script>
+<style>
+  :root {
+    --cork: #b8834a;
+    --cork-dark: #8a5c2d;
+    --paper-yellow: #fff4a3;
+    --paper-pink: #ffb8c8;
+    --paper-blue: #a8d8f0;
+    --paper-green: #b8e6a5;
+    --paper-cream: #fff5e0;
+    --tape: rgba(255, 255, 200, 0.55);
+    --ink: #2b2b2b;
+    --red: #c73030;
+    --thumbtack: #d4342c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background:
+      radial-gradient(circle at 20% 30%, rgba(0,0,0,0.05) 1px, transparent 2px),
+      radial-gradient(circle at 70% 60%, rgba(0,0,0,0.04) 1px, transparent 2px),
+      radial-gradient(circle at 50% 90%, rgba(0,0,0,0.05) 1px, transparent 2px),
+      radial-gradient(circle at 10% 80%, rgba(0,0,0,0.03) 1px, transparent 2px),
+      radial-gradient(circle at 90% 15%, rgba(0,0,0,0.04) 1px, transparent 2px),
+      linear-gradient(135deg, #b8834a 0%, #a67240 50%, #b8834a 100%);
+    background-size: 60px 60px, 80px 80px, 100px 100px, 70px 70px, 90px 90px, 100% 100%;
+    color: var(--ink);
+    font-family: 'Kalam', cursive;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ---------- Top bar ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 32px;
+    background: rgba(184, 131, 74, 0.92);
+    backdrop-filter: blur(6px);
+    border-bottom: 3px dashed rgba(0,0,0,0.15);
+  }
+  .brand { display: flex; align-items: center; gap: 12px; font-family: 'Caveat', cursive; font-size: 32px; font-weight: 700; color: #fff5e0; text-shadow: 2px 2px 0 rgba(0,0,0,0.2); }
+  .brand-mark { width: 40px; height: 40px; border-radius: 50%; background: var(--paper-yellow); display: grid; place-items: center; font-family: 'Caveat', cursive; font-size: 24px; color: var(--ink); box-shadow: 0 3px 0 rgba(0,0,0,0.2); transform: rotate(-6deg); }
+  .topbar-right { display: flex; align-items: center; gap: 16px; }
+  .net-badge { padding: 6px 14px; border-radius: 20px; background: var(--paper-cream); font-family: 'Patrick Hand', cursive; font-size: 14px; color: var(--ink); border: 2px solid var(--ink); transform: rotate(1deg); }
+  .connect-btn {
+    padding: 10px 22px;
+    background: var(--paper-yellow);
+    border: 3px solid var(--ink);
+    border-radius: 30px 25px 30px 20px;
+    font-family: 'Caveat', cursive;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--ink);
+    cursor: pointer;
+    box-shadow: 3px 3px 0 var(--ink);
+    transition: transform .1s, box-shadow .1s;
+    transform: rotate(-1deg);
+  }
+  .connect-btn:hover { transform: rotate(-1deg) translate(-2px, -2px); box-shadow: 5px 5px 0 var(--ink); }
+  .connect-btn:active { transform: rotate(-1deg) translate(1px, 1px); box-shadow: 1px 1px 0 var(--ink); }
+  .connect-btn.connected { background: var(--paper-green); }
+
+  /* ---------- Landing ---------- */
+  .hero { padding: 80px 40px 120px; text-align: center; position: relative; }
+  .hero h1 {
+    font-family: 'Caveat', cursive;
+    font-size: clamp(48px, 8vw, 120px);
+    line-height: 0.95;
+    color: #fff5e0;
+    text-shadow: 4px 4px 0 rgba(0,0,0,0.25);
+    transform: rotate(-2deg);
+    margin-bottom: 20px;
+  }
+  .hero h1 .highlight {
+    display: inline-block;
+    background: var(--paper-yellow);
+    color: var(--ink);
+    padding: 0 20px;
+    transform: rotate(2deg);
+    border-radius: 8px;
+    box-shadow: 5px 5px 0 rgba(0,0,0,0.2);
+  }
+  .hero p {
+    font-family: 'Patrick Hand', cursive;
+    font-size: clamp(20px, 2vw, 26px);
+    color: #fff5e0;
+    max-width: 720px;
+    margin: 0 auto 50px;
+    line-height: 1.4;
+  }
+  .hero-notes { position: relative; height: 400px; max-width: 1100px; margin: 0 auto; }
+  .float-note {
+    position: absolute;
+    padding: 24px;
+    box-shadow: 4px 8px 20px rgba(0,0,0,0.3);
+    font-family: 'Kalam', cursive;
+    animation: sway 4s ease-in-out infinite;
+  }
+  .float-note::before {
+    content: ''; position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+    width: 60px; height: 22px; background: var(--tape);
+    border-left: 1px dashed rgba(0,0,0,0.1); border-right: 1px dashed rgba(0,0,0,0.1);
+  }
+  .float-note h3 { font-family: 'Caveat', cursive; font-size: 26px; margin-bottom: 8px; }
+  .float-note p { font-size: 15px; line-height: 1.35; }
+  .fn1 { top: 20px; left: 5%; width: 220px; background: var(--paper-yellow); transform: rotate(-5deg); }
+  .fn2 { top: 50px; right: 8%; width: 240px; background: var(--paper-pink); transform: rotate(4deg); animation-delay: .5s; }
+  .fn3 { top: 200px; left: 20%; width: 210px; background: var(--paper-blue); transform: rotate(-2deg); animation-delay: 1s; }
+  .fn4 { top: 180px; right: 22%; width: 230px; background: var(--paper-green); transform: rotate(3deg); animation-delay: 1.5s; }
+  @keyframes sway { 0%,100% { transform: rotate(var(--r, -5deg)) translateY(0); } 50% { transform: rotate(var(--r, -5deg)) translateY(-8px); } }
+
+  .cta-row { display: flex; justify-content: center; gap: 24px; margin-top: 40px; flex-wrap: wrap; }
+  .cta {
+    padding: 16px 36px; font-family: 'Caveat', cursive; font-size: 28px; font-weight: 700;
+    background: var(--paper-pink); color: var(--ink);
+    border: 3px solid var(--ink);
+    border-radius: 30px 20px 30px 25px;
+    cursor: pointer; box-shadow: 4px 4px 0 var(--ink);
+    text-decoration: none; display: inline-block;
+    transition: transform .1s;
+  }
+  .cta:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--ink); }
+  .cta.alt { background: var(--paper-blue); }
+
+  /* ---------- Features ---------- */
+  .features {
+    background: rgba(255, 245, 224, 0.92);
+    padding: 70px 40px;
+    position: relative;
+    margin: 60px 0;
+    border-top: 4px dashed rgba(0,0,0,0.15);
+    border-bottom: 4px dashed rgba(0,0,0,0.15);
+  }
+  .features-title { text-align: center; font-family: 'Caveat', cursive; font-size: 60px; color: var(--ink); margin-bottom: 12px; transform: rotate(-1deg); }
+  .features-sub { text-align: center; font-family: 'Patrick Hand', cursive; font-size: 20px; margin-bottom: 50px; }
+  .features-grid { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 40px 30px; }
+  .feat {
+    padding: 30px 24px;
+    background: var(--paper-yellow);
+    border: 2px solid var(--ink);
+    position: relative;
+    box-shadow: 4px 4px 0 var(--ink);
+    min-height: 240px;
+  }
+  .feat:nth-child(2) { background: var(--paper-pink); transform: rotate(1deg); }
+  .feat:nth-child(3) { background: var(--paper-blue); transform: rotate(-1deg); }
+  .feat:nth-child(4) { background: var(--paper-green); }
+  .feat .pin {
+    position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+    width: 24px; height: 24px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #ff6b60, var(--thumbtack) 60%, #8b1a12);
+    box-shadow: 1px 3px 6px rgba(0,0,0,0.4);
+  }
+  .feat h3 { font-family: 'Caveat', cursive; font-size: 32px; margin-bottom: 12px; }
+  .feat p { font-family: 'Patrick Hand', cursive; font-size: 17px; line-height: 1.45; }
+
+  /* ---------- Dashboard ---------- */
+  .app { padding: 60px 32px; max-width: 1200px; margin: 0 auto; }
+  .app-title { text-align: center; font-family: 'Caveat', cursive; font-size: 64px; color: #fff5e0; text-shadow: 3px 3px 0 rgba(0,0,0,0.25); margin-bottom: 40px; transform: rotate(-1deg); }
+
+  .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 20px; margin-bottom: 40px; }
+  .stat-card {
+    padding: 20px; background: var(--paper-cream);
+    border: 2px solid var(--ink);
+    box-shadow: 3px 3px 0 var(--ink);
+    text-align: center;
+    position: relative;
+  }
+  .stat-card:nth-child(1) { transform: rotate(-1deg); }
+  .stat-card:nth-child(2) { transform: rotate(1deg); }
+  .stat-card:nth-child(3) { transform: rotate(-0.5deg); }
+  .stat-card:nth-child(4) { transform: rotate(1deg); }
+  .stat-label { font-family: 'Patrick Hand', cursive; font-size: 14px; color: #555; text-transform: uppercase; }
+  .stat-value { font-family: 'Special Elite', monospace; font-size: 30px; font-weight: 700; color: var(--ink); margin-top: 6px; }
+
+  .tabs { display: flex; gap: 12px; justify-content: center; margin-bottom: 30px; flex-wrap: wrap; }
+  .tab {
+    padding: 12px 26px; background: var(--paper-cream);
+    border: 2px solid var(--ink);
+    font-family: 'Caveat', cursive; font-size: 22px; cursor: pointer;
+    box-shadow: 3px 3px 0 var(--ink);
+    transition: transform .1s;
+  }
+  .tab:hover { transform: translate(-1px, -1px); }
+  .tab.active { background: var(--paper-yellow); transform: translate(-2px, -2px); box-shadow: 5px 5px 0 var(--ink); }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .register-form, .search-form {
+    max-width: 640px; margin: 0 auto;
+    padding: 30px;
+    background: var(--paper-cream);
+    border: 3px solid var(--ink);
+    box-shadow: 5px 5px 0 var(--ink);
+    transform: rotate(-0.5deg);
+  }
+  .form-row { margin-bottom: 20px; }
+  .form-row label { display: block; font-family: 'Caveat', cursive; font-size: 22px; margin-bottom: 6px; }
+  .form-row input, .form-row textarea {
+    width: 100%; padding: 10px 14px;
+    background: #fff; border: 2px solid var(--ink);
+    font-family: 'Patrick Hand', cursive; font-size: 17px;
+    outline: none;
+  }
+  .form-row input:focus, .form-row textarea:focus { background: var(--paper-yellow); }
+  .btn {
+    padding: 12px 28px; background: var(--paper-pink);
+    border: 3px solid var(--ink); font-family: 'Caveat', cursive; font-size: 24px;
+    cursor: pointer; box-shadow: 4px 4px 0 var(--ink);
+    transition: transform .1s;
+  }
+  .btn:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--ink); }
+  .btn.alt { background: var(--paper-green); }
+  .btn.small { padding: 6px 14px; font-size: 18px; box-shadow: 2px 2px 0 var(--ink); }
+
+  /* ---------- Corkboard grid ---------- */
+  .board {
+    min-height: 400px;
+    position: relative;
+    padding: 20px;
+  }
+  .board-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 30px; }
+  .link-note {
+    position: relative;
+    padding: 20px 18px 18px;
+    background: var(--paper-yellow);
+    border: 1px solid rgba(0,0,0,0.15);
+    box-shadow: 4px 8px 16px rgba(0,0,0,0.25);
+    min-height: 180px;
+  }
+  .link-note:nth-child(4n+1) { background: var(--paper-yellow); transform: rotate(-2deg); }
+  .link-note:nth-child(4n+2) { background: var(--paper-pink); transform: rotate(1.5deg); }
+  .link-note:nth-child(4n+3) { background: var(--paper-blue); transform: rotate(-1deg); }
+  .link-note:nth-child(4n) { background: var(--paper-green); transform: rotate(2deg); }
+  .link-note .pin {
+    position: absolute; top: -12px; left: 20px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #ff8878, var(--thumbtack) 60%, #7a1810);
+    box-shadow: 1px 3px 4px rgba(0,0,0,0.5);
+  }
+  .link-note .slug { font-family: 'Special Elite', monospace; font-size: 14px; color: #555; background: rgba(255,255,255,0.5); padding: 2px 8px; display: inline-block; margin-bottom: 8px; }
+  .link-note h4 { font-family: 'Caveat', cursive; font-size: 24px; line-height: 1.1; margin-bottom: 10px; word-break: break-word; }
+  .link-note .url {
+    display: block; font-family: 'Patrick Hand', cursive;
+    font-size: 14px; color: #1a4a7a;
+    text-decoration: underline;
+    word-break: break-all;
+    margin-bottom: 14px;
+  }
+  .link-note .meta { font-family: 'Patrick Hand', cursive; font-size: 13px; color: #666; margin-bottom: 12px; }
+  .link-note .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .empty {
+    text-align: center; padding: 80px 20px;
+    font-family: 'Caveat', cursive; font-size: 32px;
+    color: #fff5e0;
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.2);
+  }
+
+  /* ---------- Toast ---------- */
+  #toast {
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+    padding: 14px 28px; background: var(--paper-yellow);
+    border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink);
+    font-family: 'Caveat', cursive; font-size: 22px;
+    z-index: 1000; opacity: 0; pointer-events: none;
+    transition: opacity .3s, transform .3s;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(-10px); }
+  #toast.err { background: #ff9c9c; }
+
+  footer { padding: 30px; text-align: center; font-family: 'Patrick Hand', cursive; color: #fff5e0; opacity: 0.8; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><div class="brand-mark">L</div>LinkChain</div>
+  <div class="topbar-right">
+    <span class="net-badge" id="netBadge">Not connected</span>
+    <button class="connect-btn" id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
+  </div>
+</header>
+
+<section class="hero">
+  <h1>Pin your links.<br/><span class="highlight">Forever.</span></h1>
+  <p>LinkChain is a corkboard for the whole internet — every link lives on-chain, permanent, resolvable by a memorable slug. Love a link? Boost it with BOT. The owner keeps the boost.</p>
+  <div class="cta-row">
+    <a href="#app" class="cta">Start Pinning →</a>
+    <a href="#features" class="cta alt">See how</a>
+  </div>
+
+  <div class="hero-notes">
+    <div class="float-note fn1" style="--r: -5deg;"><h3>bookmark that essay</h3><p>Slug it. Share it. It's yours forever, even if the site dies.</p></div>
+    <div class="float-note fn2" style="--r: 4deg;"><h3>boost a friend</h3><p>Send them BOT as a thank-you and pump their link to the top of the board.</p></div>
+    <div class="float-note fn3" style="--r: -2deg;"><h3>own a slug</h3><p>Grab <b>/manifesto</b> before anyone else does. It resolves to your URL. Forever.</p></div>
+    <div class="float-note fn4" style="--r: 3deg;"><h3>no takedowns</h3><p>No moderator. No dead 404s. The link registry is the chain.</p></div>
+  </div>
+</section>
+
+<section class="features" id="features">
+  <h2 class="features-title">Why pin on-chain?</h2>
+  <p class="features-sub">Four things a normal bookmark manager can't do</p>
+  <div class="features-grid">
+    <div class="feat"><div class="pin"></div><h3>Permanent slug</h3><p>Register /myessay once. It resolves to your URL for as long as BOT Chain exists — even if your host disappears.</p></div>
+    <div class="feat"><div class="pin"></div><h3>Boost = tip</h3><p>Every BOT boost flows straight to the link's owner (minus a tiny platform fee). It's a curation market and a tip jar in one.</p></div>
+    <div class="feat"><div class="pin"></div><h3>Time-decayed ranking</h3><p>Boost weight halves every 7 days. The corkboard stays fresh — old boosts fade so new voices can rise.</p></div>
+    <div class="feat"><div class="pin"></div><h3>Own it, edit it</h3><p>Only you can update the URL your slug points to. Move sites, rebrand, redirect — the slug is yours.</p></div>
+  </div>
+</section>
+
+<main class="app" id="app">
+  <h2 class="app-title">The Board</h2>
+
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-label">Total Links</div><div class="stat-value" id="statCount">—</div></div>
+    <div class="stat-card"><div class="stat-label">Reg. Fee</div><div class="stat-value" id="statFee">—</div></div>
+    <div class="stat-card"><div class="stat-label">My Links</div><div class="stat-value" id="statMine">—</div></div>
+    <div class="stat-card"><div class="stat-label">Network</div><div class="stat-value" id="statNet" style="font-size:20px;">—</div></div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-panel="recent">Recent</div>
+    <div class="tab" data-panel="register">Pin a Link</div>
+    <div class="tab" data-panel="resolve">Resolve Slug</div>
+    <div class="tab" data-panel="mine">My Links</div>
+  </div>
+
+  <div class="panel active" id="panel-recent">
+    <div class="board"><div class="board-grid" id="recentBoard"><div class="empty">Deploy the contract to see pinned links…</div></div></div>
+  </div>
+
+  <div class="panel" id="panel-register">
+    <form class="register-form" onsubmit="event.preventDefault(); registerLink();">
+      <div class="form-row">
+        <label>Slug (short unique tag)</label>
+        <input id="regSlug" placeholder="my-essay" maxlength="32" required />
+      </div>
+      <div class="form-row">
+        <label>Full URL</label>
+        <input id="regUrl" placeholder="https://example.com/my-essay" required />
+      </div>
+      <div class="form-row">
+        <label>Title</label>
+        <input id="regTitle" placeholder="Notes on rain and code" maxlength="128" />
+      </div>
+      <button class="btn" type="submit">Pin it! 📌</button>
+    </form>
+  </div>
+
+  <div class="panel" id="panel-resolve">
+    <form class="search-form" onsubmit="event.preventDefault(); resolveSlug();">
+      <div class="form-row">
+        <label>Look up a slug</label>
+        <input id="resolveSlug" placeholder="my-essay" />
+      </div>
+      <button class="btn alt" type="submit">Resolve →</button>
+      <div id="resolveResult" style="margin-top:20px;"></div>
+    </form>
+  </div>
+
+  <div class="panel" id="panel-mine">
+    <div class="board"><div class="board-grid" id="mineBoard"><div class="empty">Connect your wallet to see your pinned links…</div></div></div>
+  </div>
+</main>
+
+<footer>
+  Handmade for BOT Chain · v1.0 · every link is a promise 🌱
+</footer>
+
+<div id="toast"></div>
+
+<script>
+// ============ CONFIG ============
+const CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000000"; // <-- replace after deploy
+const NETWORK = {
+  chainId: "0x3C8", // 968 testnet — change to "0x2A5" for mainnet
+  chainName: "BOT Chain Testnet",
+  nativeCurrency: { name: "BOT", symbol: "BOT", decimals: 18 },
+  rpcUrls: ["https://rpc.bohr.life"],
+  blockExplorerUrls: ["https://scan.bohr.life"],
+};
+
+const ABI = [
+  "function registerLink(string slug, string url, string title) payable returns (uint256)",
+  "function boostLink(uint256 id) payable",
+  "function updateLink(uint256 id, string newUrl, string newTitle)",
+  "function getLink(uint256 id) view returns (tuple(uint256 id, address owner, string slug, string url, string title, uint256 createdAt, uint256 totalBoost, uint256 lastBoostAt))",
+  "function resolveSlug(string slug) view returns (tuple(uint256 id, address owner, string slug, string url, string title, uint256 createdAt, uint256 totalBoost, uint256 lastBoostAt))",
+  "function getRecent(uint256 limit) view returns (tuple(uint256 id, address owner, string slug, string url, string title, uint256 createdAt, uint256 totalBoost, uint256 lastBoostAt)[])",
+  "function getLinksByOwner(address who) view returns (uint256[])",
+  "function linkCount() view returns (uint256)",
+  "function registrationFee() view returns (uint256)",
+  "function currentWeight(uint256 id) view returns (uint256)"
+];
+
+// ============ STATE ============
+let provider, signer, contract, account;
+const ZERO = "0x0000000000000000000000000000000000000000";
+
+// ============ HELPERS ============
+function toast(msg, isErr) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.toggle('err', !!isErr); t.classList.add('show');
+  clearTimeout(window._tt); window._tt = setTimeout(() => t.classList.remove('show'), 3500);
+}
+function short(a) { return a ? a.slice(0, 6) + "…" + a.slice(-4) : "—"; }
+function fmtBot(wei) { try { return Number(ethers.formatEther(wei)).toFixed(4); } catch { return "0"; } }
+function timeAgo(sec) {
+  const s = Math.floor(Date.now()/1000) - Number(sec);
+  if (s < 60) return s + "s ago";
+  if (s < 3600) return Math.floor(s/60) + "m ago";
+  if (s < 86400) return Math.floor(s/3600) + "h ago";
+  return Math.floor(s/86400) + "d ago";
+}
+
+// ============ WALLET ============
+async function connectWallet() {
+  if (!window.ethereum) { toast("Install MetaMask first", true); return; }
+  try {
+    provider = new ethers.BrowserProvider(window.ethereum);
+    await window.ethereum.request({ method: "eth_requestAccounts" });
+    const net = await provider.getNetwork();
+    if ("0x" + net.chainId.toString(16) !== NETWORK.chainId) {
+      try {
+        await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: NETWORK.chainId }] });
+      } catch (e) {
+        if (e.code === 4902) {
+          await window.ethereum.request({ method: "wallet_addEthereumChain", params: [NETWORK] });
+        } else throw e;
+      }
+      provider = new ethers.BrowserProvider(window.ethereum);
+    }
+    signer = await provider.getSigner();
+    account = await signer.getAddress();
+    contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+
+    const btn = document.getElementById('connectBtn');
+    btn.textContent = short(account); btn.classList.add('connected');
+    document.getElementById('netBadge').textContent = NETWORK.chainName;
+    toast("Connected!");
+    refreshAll();
+  } catch (e) { console.error(e); toast(e.message || "Connection failed", true); }
+}
+
+// ============ CONTRACT READS ============
+async function refreshAll() {
+  document.getElementById('statNet').textContent = NETWORK.chainName.replace('BOT Chain ', '');
+  if (CONTRACT_ADDRESS === ZERO || !contract) {
+    document.getElementById('statCount').textContent = "—";
+    document.getElementById('statFee').textContent = "—";
+    document.getElementById('statMine').textContent = "—";
+    return;
+  }
+  try {
+    const [count, fee] = await Promise.all([contract.linkCount(), contract.registrationFee()]);
+    document.getElementById('statCount').textContent = count.toString();
+    document.getElementById('statFee').textContent = fmtBot(fee) + " BOT";
+    if (account) {
+      const mine = await contract.getLinksByOwner(account);
+      document.getElementById('statMine').textContent = mine.length.toString();
+    }
+    loadRecent();
+    if (account) loadMine();
+  } catch (e) { console.error(e); }
+}
+
+async function loadRecent() {
+  const grid = document.getElementById('recentBoard');
+  if (CONTRACT_ADDRESS === ZERO || !contract) { grid.innerHTML = '<div class="empty">Deploy the contract to see pinned links…</div>'; return; }
+  try {
+    const links = await contract.getRecent(24);
+    if (links.length === 0) { grid.innerHTML = '<div class="empty">No links pinned yet — be the first! 📌</div>'; return; }
+    grid.innerHTML = links.map(l => noteCard(l)).join('');
+  } catch (e) { grid.innerHTML = '<div class="empty">Contract not reachable</div>'; }
+}
+
+async function loadMine() {
+  const grid = document.getElementById('mineBoard');
+  if (!account || !contract) { grid.innerHTML = '<div class="empty">Connect your wallet…</div>'; return; }
+  try {
+    const ids = await contract.getLinksByOwner(account);
+    if (ids.length === 0) { grid.innerHTML = '<div class="empty">You haven\'t pinned anything yet</div>'; return; }
+    const links = await Promise.all(ids.map(id => contract.getLink(id)));
+    grid.innerHTML = links.map(l => noteCard(l, true)).join('');
+  } catch (e) { console.error(e); }
+}
+
+function noteCard(l, mine) {
+  const title = l.title || l.slug;
+  const owner = l.owner.toLowerCase() === (account||'').toLowerCase() ? 'you' : short(l.owner);
+  return `<div class="link-note">
+    <div class="pin"></div>
+    <span class="slug">/${l.slug}</span>
+    <h4>${escapeHtml(title)}</h4>
+    <a href="${escapeAttr(l.url)}" target="_blank" rel="noopener" class="url">${escapeHtml(l.url)}</a>
+    <div class="meta">by ${owner} · ${timeAgo(l.createdAt)} · boost ${fmtBot(l.totalBoost)} BOT</div>
+    <div class="actions">
+      <button class="btn small alt" onclick="boostPrompt(${l.id})">↑ Boost</button>
+      ${mine ? `<button class="btn small" onclick="editPrompt(${l.id})">Edit</button>` : ''}
+    </div>
+  </div>`;
+}
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s) { return escapeHtml(s); }
+
+// ============ WRITES ============
+async function registerLink() {
+  if (!contract) { toast("Connect wallet first", true); return; }
+  const slug = document.getElementById('regSlug').value.trim();
+  const url = document.getElementById('regUrl').value.trim();
+  const title = document.getElementById('regTitle').value.trim();
+  if (!slug || !url) { toast("Slug and URL are required", true); return; }
+  try {
+    const fee = await contract.registrationFee();
+    toast("Pinning… ✍️");
+    const tx = await contract.registerLink(slug, url, title, { value: fee });
+    await tx.wait();
+    toast("Pinned! 📌");
+    document.getElementById('regSlug').value = '';
+    document.getElementById('regUrl').value = '';
+    document.getElementById('regTitle').value = '';
+    refreshAll();
+  } catch (e) { console.error(e); toast(e.reason || e.message || "Failed", true); }
+}
+
+async function boostPrompt(id) {
+  if (!contract) { toast("Connect wallet first", true); return; }
+  const amt = prompt("Boost how much BOT?", "0.1");
+  if (!amt) return;
+  try {
+    const tx = await contract.boostLink(id, { value: ethers.parseEther(amt) });
+    toast("Boosting…");
+    await tx.wait();
+    toast("Boosted! ⬆️");
+    refreshAll();
+  } catch (e) { toast(e.reason || e.message || "Failed", true); }
+}
+
+async function editPrompt(id) {
+  const link = await contract.getLink(id);
+  const newUrl = prompt("New URL:", link.url);
+  if (!newUrl) return;
+  const newTitle = prompt("New title:", link.title) || link.title;
+  try {
+    const tx = await contract.updateLink(id, newUrl, newTitle);
+    toast("Updating…");
+    await tx.wait();
+    toast("Updated!");
+    refreshAll();
+  } catch (e) { toast(e.reason || e.message || "Failed", true); }
+}
+
+async function resolveSlug() {
+  if (!contract) { toast("Connect wallet first", true); return; }
+  const slug = document.getElementById('resolveSlug').value.trim();
+  if (!slug) return;
+  try {
+    const l = await contract.resolveSlug(slug);
+    document.getElementById('resolveResult').innerHTML = noteCard(l);
+  } catch (e) {
+    document.getElementById('resolveResult').innerHTML = '<div class="empty" style="color:var(--ink);text-shadow:none;font-size:22px;">Not found 😢</div>';
+  }
+}
+
+// ============ TABS ============
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('panel-' + t.dataset.panel).classList.add('active');
+  });
+});
+
+// ============ INIT ============
+window.addEventListener('load', () => {
+  document.getElementById('statNet').textContent = NETWORK.chainName.replace('BOT Chain ', '');
+  if (window.ethereum) {
+    window.ethereum.on?.('accountsChanged', () => location.reload());
+    window.ethereum.on?.('chainChanged', () => location.reload());
+  }
+  refreshAll();
+});
+</script>
+</body>
+</html>
